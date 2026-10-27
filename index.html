@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f3d4a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Organizador de tareas</title>
+<style>
+:root{
+  --fondo:#eaf0f3; --papel:#ffffff; --tinta:#10242d; --tinta-suave:#5a6e78; --linea:#d5dfe4;
+  --marca:#0f3d4a; --marca-clara:#d9ebef;
+  --hacer:#64748b; --entregar:#d9822b; --hechas:#2f9e6e; --alerta:#c0392b;
+  --radio:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:"Segoe UI",Roboto,system-ui,-apple-system,sans-serif;
+  background:var(--fondo);color:var(--tinta);line-height:1.4;
+  padding:0 0 calc(40px + env(safe-area-inset-bottom));
+}
+.contenedor{max-width:760px;margin:0 auto;padding:0 14px}
+header{
+  background:var(--marca);color:#fff;
+  padding:calc(18px + env(safe-area-inset-top)) 0 64px;
+}
+header h1{font-size:1.5rem;font-weight:700;letter-spacing:-.01em}
+header p{font-size:.9rem;opacity:.8;margin-top:2px}
+
+/* Contadores */
+.contadores{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:-46px}
+.contador{
+  background:var(--papel);border:2px solid transparent;border-radius:var(--radio);
+  padding:12px 8px;text-align:center;cursor:pointer;font:inherit;color:inherit;
+  box-shadow:0 3px 10px rgba(16,36,45,.12);
+}
+.contador b{display:block;font-size:1.7rem;line-height:1.1}
+.contador span{font-size:.78rem;color:var(--tinta-suave)}
+.contador[data-estado="Por hacer"] b{color:var(--hacer)}
+.contador[data-estado="Por entregar"] b{color:var(--entregar)}
+.contador[data-estado="Hechas"] b{color:var(--hechas)}
+.contador.activo{border-color:var(--marca)}
+
+/* Avisos */
+.aviso{
+  background:#fff4e0;border:1px solid #f0c987;border-radius:var(--radio);
+  padding:12px 14px;margin-top:14px;font-size:.9rem;
+}
+.aviso strong{display:block;margin-bottom:4px}
+.aviso ul{margin-left:18px}
+.aviso.rojo{background:#fdecea;border-color:#f2b8b1}
+#zonaAvisos .aviso{margin-top:10px}
+#zonaAvisos .aviso:first-child{margin-top:14px}
+.btn-avisos{
+  margin-top:8px;background:var(--marca);color:#fff;border:0;border-radius:8px;
+  padding:8px 12px;font:inherit;font-size:.85rem;font-weight:600;cursor:pointer;
+}
+
+/* Formulario */
+details.nueva{
+  background:var(--papel);border-radius:var(--radio);margin-top:14px;
+  box-shadow:0 2px 8px rgba(16,36,45,.07);
+}
+details.nueva summary{
+  list-style:none;cursor:pointer;padding:14px 16px;font-weight:700;color:var(--marca);
+  display:flex;justify-content:space-between;align-items:center;
+}
+details.nueva summary::-webkit-details-marker{display:none}
+details.nueva summary::after{content:"+";font-size:1.4rem;line-height:1}
+details.nueva[open] summary::after{content:"–"}
+.form{padding:0 16px 16px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.campo{margin-bottom:10px}
+label{display:block;font-size:.8rem;font-weight:600;color:var(--tinta-suave);margin-bottom:4px}
+input,select{
+  width:100%;padding:11px 10px;border:1px solid var(--linea);border-radius:10px;
+  font:inherit;font-size:.95rem;background:#fff;color:var(--tinta);
+}
+input:focus,select:focus,button:focus-visible,summary:focus-visible{outline:3px solid #7fc4d1;outline-offset:1px}
+.btn-guardar{
+  width:100%;background:var(--marca);color:#fff;border:0;border-radius:10px;
+  padding:13px;font:inherit;font-weight:700;font-size:1rem;cursor:pointer;margin-top:4px;
+}
+
+/* Barra de herramientas */
+.herramientas{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+.herramientas .buscar{grid-column:1 / -1}
+.btn-sec{
+  background:var(--papel);color:var(--marca);border:1px solid var(--linea);border-radius:10px;
+  padding:10px;font:inherit;font-size:.88rem;font-weight:600;cursor:pointer;text-align:center;
+}
+
+/* Pestañas */
+.pestanas{display:flex;gap:4px;background:#d5e0e5;padding:4px;border-radius:12px;margin:16px 0 12px}
+.pestana{
+  flex:1;padding:10px 4px;border:0;background:transparent;border-radius:9px;
+  font:inherit;font-size:.88rem;font-weight:700;color:var(--tinta-suave);cursor:pointer;
+}
+.pestana.activa{background:var(--papel);color:var(--marca);box-shadow:0 1px 4px rgba(16,36,45,.15)}
+.panel{display:none}
+.panel.activo{display:block}
+
+/* Tareas */
+.tarea{
+  background:var(--papel);border-radius:var(--radio);padding:12px 14px;margin-bottom:8px;
+  border-left:6px solid var(--hacer);box-shadow:0 1px 4px rgba(16,36,45,.07);
+}
+.tarea.e-Por-entregar{border-left-color:var(--entregar)}
+.tarea.e-Hechas{border-left-color:var(--hechas)}
+.tarea.e-Hechas .titulo{text-decoration:line-through;color:var(--tinta-suave)}
+.tarea .titulo{font-weight:700;word-break:break-word}
+.tarea .meta{font-size:.8rem;color:var(--tinta-suave);margin-top:2px}
+.tarea .meta .hoy{color:var(--entregar);font-weight:700}
+.tarea .meta .vencida{color:var(--alerta);font-weight:700}
+.tarea .acciones{display:flex;gap:8px;margin-top:10px;align-items:center}
+.tarea select{flex:1;padding:8px;font-size:.85rem}
+.btn-borrar{
+  background:#fdecea;color:var(--alerta);border:0;border-radius:10px;
+  padding:9px 12px;font:inherit;font-size:.85rem;font-weight:700;cursor:pointer;
+}
+.vacio{text-align:center;color:var(--tinta-suave);padding:28px 10px;background:var(--papel);border-radius:var(--radio)}
+
+/* Resumen */
+.tarjeta{background:var(--papel);border-radius:var(--radio);padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(16,36,45,.07)}
+.tarjeta h2{font-size:.95rem;margin-bottom:12px}
+.dona-caja{display:flex;align-items:center;gap:18px;flex-wrap:wrap;justify-content:center}
+.dona{width:150px;height:150px;border-radius:50%;position:relative}
+.dona::after{
+  content:attr(data-total);position:absolute;inset:30px;background:var(--papel);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:700;
+}
+.leyenda div{display:flex;align-items:center;gap:8px;font-size:.9rem;margin:5px 0}
+.leyenda i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.barra-fila{margin-bottom:12px}
+.barra-fila .cab{display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px}
+.barra-fondo{background:#e3ebef;border-radius:8px;height:14px;overflow:hidden}
+.barra-valor{height:100%;border-radius:8px;transition:width .3s}
+
+/* Calendario */
+.cal-cab{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-cab strong{text-transform:capitalize}
+.cal-nav{background:var(--marca-clara);color:var(--marca);border:0;border-radius:8px;width:38px;height:38px;font-size:1.2rem;font-weight:700;cursor:pointer}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal-dia-nombre{font-size:.72rem;font-weight:700;color:var(--tinta-suave);text-align:center;padding:4px 0}
+.cal-dia{background:#f4f8fa;border:1px solid var(--linea);border-radius:8px;min-height:54px;padding:3px;font-size:.75rem;overflow:hidden}
+.cal-dia.hoy{border:2px solid var(--marca);background:var(--marca-clara)}
+.cal-dia.vacio-dia{background:transparent;border-color:transparent}
+.cal-ev{color:#fff;font-size:.62rem;padding:1px 3px;border-radius:3px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+@media (min-width:600px){.cal-dia{min-height:76px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="contenedor">
+    <h1>Organizador de tareas</h1>
+    <p id="fechaHoy"></p>
+  </div>
+</header>
+
+<main class="contenedor">
+
+  <!-- Contador rápido -->
+  <section class="contadores" aria-label="Tareas por estado">
+    <button class="contador" data-estado="Por hacer" type="button"><b id="cnt-hacer">0</b><span>Por hacer</span></button>
+    <button class="contador" data-estado="Por entregar" type="button"><b id="cnt-entregar">0</b><span>Por entregar</span></button>
+    <button class="contador" data-estado="Hechas" type="button"><b id="cnt-hechas">0</b><span>Hechas</span></button>
+  </section>
+
+  <!-- Alarmas -->
+  <div id="zonaAvisos"></div>
+
+  <!-- Nueva tarea -->
+  <details class="nueva" id="detallesNueva">
+    <summary>Nueva tarea</summary>
+    <div class="form">
+      <div class="campo">
+        <label for="titulo">Título del trabajo o tarea</label>
+        <input type="text" id="titulo" placeholder="Ej. Proyecto final de Biología" maxlength="120">
+      </div>
+      <div class="grid-2">
+        <div class="campo">
+          <label for="materia">Materia</label>
+          <input type="text" id="materia" placeholder="Ej. Historia" maxlength="60">
+        </div>
+        <div class="campo">
+          <label for="tipo">Tipo</label>
+          <select id="tipo">
+            <option>Tarea</option>
+            <option>Proyecto</option>
+            <option>Examen</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="campo">
+          <label for="fecha">Fecha de entrega</label>
+          <input type="date" id="fecha">
+        </div>
+        <div class="campo">
+          <label for="estado">Estado</label>
+          <select id="estado">
+            <option>Por hacer</option>
+            <option>Por entregar</option>
+            <option>Hechas</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-guardar" type="button" id="btnGuardar">Guardar tarea</button>
+    </div>
+  </details>
+
+  <!-- Búsqueda, filtro y respaldo -->
+  <section class="herramientas" aria-label="Buscar y respaldar">
+    <input class="buscar" type="search" id="buscador" placeholder="Buscar por título, materia o tipo" aria-label="Buscar tareas">
+    <select id="filtroEstado" aria-label="Filtrar por estado">
+      <option value="Todos">Todos los estados</option>
+      <option>Por hacer</option>
+      <option>Por entregar</option>
+      <option>Hechas</option>
+    </select>
+    <select id="orden" aria-label="Ordenar">
+      <option value="fecha">Ordenar por fecha</option>
+      <option value="reciente">Más recientes primero</option>
+    </select>
+    <button class="btn-sec" type="button" id="btnExportar">Exportar respaldo</button>
+    <button class="btn-sec" type="button" id="btnImportar">Importar respaldo</button>
+    <input type="file" id="archivoImportar" accept="application/json,.json" hidden>
+  </section>
+
+  <!-- Pestañas -->
+  <nav class="pestanas" role="tablist">
+    <button class="pestana activa" type="button" data-panel="pTareas" role="tab">Tareas</button>
+    <button class="pestana" type="button" data-panel="pResumen" role="tab">Resumen</button>
+    <button class="pestana" type="button" data-panel="pCalendario" role="tab">Calendario</button>
+  </nav>
+
+  <section id="pTareas" class="panel activo"><div id="listaTareas"></div></section>
+
+  <section id="pResumen" class="panel">
+    <div class="tarjeta">
+      <h2>Estado de las tareas</h2>
+      <div class="dona-caja">
+        <div class="dona" id="dona" data-total="0"></div>
+        <div class="leyenda" id="leyenda"></div>
+      </div>
+    </div>
+    <div class="tarjeta">
+      <h2>Cantidad por estado</h2>
+      <div id="barras"></div>
+    </div>
+  </section>
+
+  <section id="pCalendario" class="panel">
+    <div class="tarjeta">
+      <div class="cal-cab">
+        <button class="cal-nav" type="button" id="calAnt" aria-label="Mes anterior">‹</button>
+        <strong id="calTitulo"></strong>
+        <button class="cal-nav" type="button" id="calSig" aria-label="Mes siguiente">›</button>
+      </div>
+      <div class="cal-grid" id="calCabecera"></div>
+      <div class="cal-grid" id="calDias" style="margin-top:4px"></div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+(function(){
+  'use strict';
+
+  var ESTADOS = ['Por hacer','Por entregar','Hechas'];
+  var COLORES = {'Por hacer':'#64748b','Por entregar':'#d9822b','Hechas':'#2f9e6e'};
+  var CLAVE = 'my_app_tasks';          // misma clave de la versión anterior: no se pierden tareas
+  var CLAVE_AVISO = 'tareas_avisos_hechos';
+
+  function $(id){ return document.getElementById(id); }
+  function plugin(nombre){
+    return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins[nombre]) || null;
+  }
+  function esc(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function hoyStr(){
+    var d = new Date();
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  }
+  function pad(n){ return String(n).padStart(2,'0'); }
+
+  // Convierte estados de la versión anterior a los nuevos
+  function normalizarEstado(e){
+    if (ESTADOS.indexOf(e) !== -1) return e;
+    if (e === 'Hecha') return 'Hechas';
+    return 'Por hacer'; // Pendiente, NoHecha o cualquier otro
+  }
+  function normalizarTarea(t){
+    return {
+      id: t.id || (Date.now() + Math.floor(Math.random()*1000)),
+      title: String(t.title || 'Sin título'),
+      subject: String(t.subject || 'General'),
+      type: String(t.type || 'Tarea'),
+      dueDate: String(t.dueDate || ''),
+      status: normalizarEstado(t.status)
+    };
+  }
+
+  var tareas = [];
+  try { tareas = (JSON.parse(localStorage.getItem(CLAVE)) || []).map(normalizarTarea); } catch(e){ tareas = []; }
+
+  function guardar(){
+    try { localStorage.setItem(CLAVE, JSON.stringify(tareas)); } catch(e){}
+    pintarTodo();
+  }
+
+  /* ---------- Fecha en cabecera ---------- */
+  $('fechaHoy').textContent = new Date().toLocaleDateString('es', {weekday:'long', day:'numeric', month:'long'});
+  $('fecha').value = hoyStr();
+
+  /* ---------- Alta, cambio y borrado ---------- */
+  $('btnGuardar').addEventListener('click', function(){
+    var titulo = $('titulo').value.trim();
+    if (!titulo) { alert('Escribe un título para la tarea.'); $('titulo').focus(); return; }
+    tareas.push({
+      id: Date.now(),
+      title: titulo,
+      subject: $('materia').value.trim() || 'General',
+      type: $('tipo').value,
+      dueDate: $('fecha').value,
+      status: $('estado').value
+    });
+    $('titulo').value = '';
+    $('materia').value = '';
+    guardar();
+    revisarAlarmas(true);
+  });
+
+  $('listaTareas').addEventListener('change', function(ev){
+    var sel = ev.target.closest('select[data-id]');
+    if (!sel) return;
+    var id = Number(sel.getAttribute('data-id'));
+    tareas.forEach(function(t){ if (t.id === id) t.status = sel.value; });
+    guardar();
+  });
+  $('listaTareas').addEventListener('click', function(ev){
+    var b = ev.target.closest('button[data-borrar]');
+    if (!b) return;
+    if (!confirm('¿Borrar esta tarea?')) return;
+    var id = Number(b.getAttribute('data-borrar'));
+    tareas = tareas.filter(function(t){ return t.id !== id; });
+    guardar();
+  });
+
+  /* ---------- Contadores y filtros ---------- */
+  var filtro = 'Todos';
+  function ponerFiltro(v){
+    filtro = v;
+    $('filtroEstado').value = v;
+    pintarLista();
+    pintarContadores();
+  }
+  $('filtroEstado').addEventListener('change', function(){ ponerFiltro(this.value); });
+  $('buscador').addEventListener('input', pintarLista);
+  $('orden').addEventListener('change', pintarLista);
+  document.querySelectorAll('.contador').forEach(function(b){
+    b.addEventListener('click', function(){
+      var e = b.getAttribute('data-estado');
+      ponerFiltro(filtro === e ? 'Todos' : e);   // segundo toque quita el filtro
+      cambiarPanel('pTareas');
+    });
+  });
+
+  function pintarContadores(){
+    var c = {'Por hacer':0,'Por entregar':0,'Hechas':0};
+    tareas.forEach(function(t){ c[t.status]++; });
+    $('cnt-hacer').textContent = c['Por hacer'];
+    $('cnt-entregar').textContent = c['Por entregar'];
+    $('cnt-hechas').textContent = c['Hechas'];
+    document.querySelectorAll('.contador').forEach(function(b){
+      b.classList.toggle('activo', b.getAttribute('data-estado') === filtro);
+    });
+  }
+
+  /* ---------- Lista ---------- */
+  function textoFecha(t){
+    if (!t.dueDate) return 'Sin fecha';
+    var hoy = hoyStr();
+    if (t.status !== 'Hechas' && t.dueDate < hoy) return '<span class="vencida">Venció el '+esc(t.dueDate)+'</span>';
+    if (t.status !== 'Hechas' && t.dueDate === hoy) return '<span class="hoy">Vence hoy</span>';
+    if (t.status !== 'Hechas' && t.dueDate === mananaStr()) return '<span class="hoy">Vence mañana</span>';
+    if (t.status !== 'Hechas' && t.dueDate === fechaMas(2)) return '<span class="hoy">Vence en 2 días</span>';
+    return 'Entrega: '+esc(t.dueDate);
+  }
+
+  function pintarLista(){
+    var q = $('buscador').value.trim().toLowerCase();
+    var lista = tareas.filter(function(t){
+      if (filtro !== 'Todos' && t.status !== filtro) return false;
+      if (!q) return true;
+      return (t.title+' '+t.subject+' '+t.type).toLowerCase().indexOf(q) !== -1;
+    });
+    if ($('orden').value === 'reciente') {
+      lista.sort(function(a,b){ return b.id - a.id; });
+    } else {
+      lista.sort(function(a,b){
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0;
+      });
+    }
+    var cont = $('listaTareas');
+    if (!lista.length) {
+      cont.innerHTML = '<div class="vacio">' +
+        (tareas.length ? 'Ninguna tarea coincide con la búsqueda o el filtro.' : 'Aún no tienes tareas. Toca «Nueva tarea» para agregar la primera.') +
+        '</div>';
+      return;
+    }
+    cont.innerHTML = lista.map(function(t){
+      var opciones = ESTADOS.map(function(e){
+        return '<option'+(e===t.status?' selected':'')+'>'+e+'</option>';
+      }).join('');
+      return '<article class="tarea e-'+t.status.replace(/ /g,'-')+'">' +
+        '<div class="titulo">'+esc(t.title)+'</div>' +
+        '<div class="meta">'+esc(t.subject)+' · '+esc(t.type)+' · '+textoFecha(t)+'</div>' +
+        '<div class="acciones">' +
+          '<select data-id="'+t.id+'" aria-label="Cambiar estado">'+opciones+'</select>' +
+          '<button class="btn-borrar" type="button" data-borrar="'+t.id+'">Borrar</button>' +
+        '</div></article>';
+    }).join('');
+  }
+
+  /* ---------- Resumen ---------- */
+  function pintarResumen(){
+    var cuenta = {}; ESTADOS.forEach(function(e){ cuenta[e] = 0; });
+    tareas.forEach(function(t){ cuenta[t.status]++; });
+    var total = tareas.length;
+
+    var grad, acum = 0;
+    if (!total) { grad = '#e3ebef'; }
+    else {
+      var partes = ESTADOS.map(function(e){
+        var ini = acum; acum += cuenta[e] / total * 100;
+        return COLORES[e]+' '+ini+'% '+acum+'%';
+      });
+      grad = 'conic-gradient('+partes.join(',')+')';
+    }
+    var dona = $('dona');
+    dona.style.background = grad;
+    dona.setAttribute('data-total', total);
+
+    $('leyenda').innerHTML = ESTADOS.map(function(e){
+      return '<div><i style="background:'+COLORES[e]+'"></i>'+e+': <b>'+cuenta[e]+'</b></div>';
+    }).join('');
+
+    $('barras').innerHTML = ESTADOS.map(function(e){
+      var p = total ? Math.round(cuenta[e]/total*100) : 0;
+      return '<div class="barra-fila"><div class="cab"><span>'+e+'</span><b>'+cuenta[e]+'</b></div>' +
+        '<div class="barra-fondo"><div class="barra-valor" style="width:'+p+'%;background:'+COLORES[e]+'"></div></div></div>';
+    }).join('');
+  }
+
+  /* ---------- Calendario ---------- */
+  var mesVista = new Date(); mesVista.setDate(1);
+  $('calAnt').addEventListener('click', function(){ mesVista.setMonth(mesVista.getMonth()-1); pintarCalendario(); });
+  $('calSig').addEventListener('click', function(){ mesVista.setMonth(mesVista.getMonth()+1); pintarCalendario(); });
+
+  function pintarCalendario(){
+    var anio = mesVista.getFullYear(), mes = mesVista.getMonth();
+    $('calTitulo').textContent = mesVista.toLocaleDateString('es', {month:'long', year:'numeric'});
+    $('calCabecera').innerHTML = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].map(function(d){
+      return '<div class="cal-dia-nombre">'+d+'</div>';
+    }).join('');
+    var primero = new Date(anio, mes, 1).getDay();
+    var ultimo = new Date(anio, mes+1, 0).getDate();
+    var hoy = hoyStr();
+    var html = '';
+    for (var i=0; i<primero; i++) html += '<div class="cal-dia vacio-dia"></div>';
+    for (var d=1; d<=ultimo; d++) {
+      var f = anio+'-'+pad(mes+1)+'-'+pad(d);
+      var evs = tareas.filter(function(t){ return t.dueDate === f; }).map(function(t){
+        return '<div class="cal-ev" style="background:'+COLORES[t.status]+'">'+esc(t.title)+'</div>';
+      }).join('');
+      html += '<div class="cal-dia'+(f===hoy?' hoy':'')+'"><strong>'+d+'</strong>'+evs+'</div>';
+    }
+    $('calDias').innerHTML = html;
+  }
+
+  /* ---------- Pestañas ---------- */
+  function cambiarPanel(id){
+    document.querySelectorAll('.panel').forEach(function(p){ p.classList.toggle('activo', p.id === id); });
+    document.querySelectorAll('.pestana').forEach(function(b){ b.classList.toggle('activa', b.getAttribute('data-panel') === id); });
+    if (id === 'pResumen') pintarResumen();
+    if (id === 'pCalendario') pintarCalendario();
+  }
+  document.querySelectorAll('.pestana').forEach(function(b){
+    b.addEventListener('click', function(){ cambiarPanel(b.getAttribute('data-panel')); });
+  });
+
+  /* ---------- Respaldo JSON ---------- */
+  $('btnExportar').addEventListener('click', async function(){
+    var datos = JSON.stringify({version:2, exportado:new Date().toISOString(), tareas:tareas}, null, 2);
+    var FS = plugin('Filesystem'), SH = plugin('Share');
+    if (FS && SH) {   // dentro de la APK
+      try {
+        var nombre = 'tareas-respaldo-'+hoyStr()+'.json';
+        await FS.writeFile({path:nombre, data:datos, directory:'CACHE', encoding:'utf8'});
+        var uri = await FS.getUri({path:nombre, directory:'CACHE'});
+        await SH.share({title:'Respaldo de tareas', url:uri.uri, dialogTitle:'Guardar respaldo'});
+      } catch(e) { alert('No se pudo exportar el respaldo.'); }
+      return;
+    }
+    var blob = new Blob([datos], {type:'application/json'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'tareas-respaldo-'+hoyStr()+'.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+  });
+  $('btnImportar').addEventListener('click', function(){ $('archivoImportar').click(); });
+  $('archivoImportar').addEventListener('change', function(){
+    var archivo = this.files[0];
+    var input = this;
+    if (!archivo) return;
+    var lector = new FileReader();
+    lector.onload = function(){
+      try {
+        var obj = JSON.parse(lector.result);
+        var lista = Array.isArray(obj) ? obj : obj.tareas;
+        if (!Array.isArray(lista)) throw new Error('formato');
+        var ids = {}; tareas.forEach(function(t){ ids[t.id] = true; });
+        var nuevas = 0;
+        lista.forEach(function(x){
+          var t = normalizarTarea(x);
+          if (ids[t.id]) return;       // evita duplicados
+          ids[t.id] = true; tareas.push(t); nuevas++;
+        });
+        guardar();
+        alert('Importación lista: '+nuevas+' tarea(s) agregada(s).');
+      } catch(e) {
+        alert('No se pudo importar. Elige un archivo JSON exportado desde esta app.');
+      }
+      input.value = '';
+    };
+    lector.readAsText(archivo);
+  });
+
+  /* ---------- Alarmas / recordatorios ---------- */
+  function avisosHechos(){
+    try { return JSON.parse(localStorage.getItem(CLAVE_AVISO)) || {}; } catch(e){ return {}; }
+  }
+
+  function fechaMas(n){
+    var d = new Date(); d.setDate(d.getDate()+n);
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  }
+  function mananaStr(){ return fechaMas(1); }
+
+  function tarjetaAviso(titulo, lista, clase, conFecha){
+    if (!lista.length) return '';
+    return '<div class="aviso'+clase+'"><strong>'+titulo+' ('+lista.length+')</strong><ul>' +
+      lista.map(function(t){
+        return '<li>'+esc(t.title)+' · '+esc(conFecha ? t.dueDate : t.subject)+'</li>';
+      }).join('') + '</ul></div>';
+  }
+
+  function revisarAlarmas(){
+    var hoy = hoyStr(), manana = fechaMas(1), en2dias = fechaMas(2);
+    var pend = tareas.filter(function(t){ return t.status !== 'Hechas' && t.dueDate; });
+    var deHoy = pend.filter(function(t){ return t.dueDate === hoy; });
+    var deManana = pend.filter(function(t){ return t.dueDate === manana; });
+    var deDosDias = pend.filter(function(t){ return t.dueDate === en2dias; });
+    var vencidas = pend.filter(function(t){ return t.dueDate < hoy; });
+
+    var html = tarjetaAviso('Vence hoy', deHoy, '', false) +
+               tarjetaAviso('Vence mañana', deManana, '', false) +
+               tarjetaAviso('Vence en 2 días', deDosDias, '', false) +
+               tarjetaAviso('Vencidas', vencidas, ' rojo', true);
+    if (html && !plugin('LocalNotifications') && 'Notification' in window && Notification.permission === 'default') {
+      html += '<button class="btn-avisos" type="button" id="btnAvisos">Activar notificaciones</button>';
+    }
+    $('zonaAvisos').innerHTML = html;
+    var ba = $('btnAvisos');
+    if (ba) ba.addEventListener('click', function(){
+      Notification.requestPermission().then(function(){ revisarAlarmas(); });
+    });
+
+    // Notificación del sistema: tres avisos por tarea (2 días antes, 1 día antes y el mero día), una vez cada uno
+    if (!plugin('LocalNotifications') && 'Notification' in window && Notification.permission === 'granted') {
+      var hechos = avisosHechos();
+      function avisar(lista, tipo, prefijo){
+        lista.forEach(function(t){
+          var k = hoy+'-'+tipo+'-'+t.id;
+          if (hechos[k]) return;
+          try { new Notification(prefijo+t.title, {body: t.subject+' · '+t.type}); } catch(e){}
+          hechos[k] = true;
+        });
+      }
+      avisar(deDosDias, 'dos', 'Vence en 2 días: ');
+      avisar(deManana, 'manana', 'Vence mañana: ');
+      avisar(deHoy, 'hoy', 'Vence hoy: ');
+      Object.keys(hechos).forEach(function(k){ if (k.slice(0,10) !== hoy) delete hechos[k]; });
+      try { localStorage.setItem(CLAVE_AVISO, JSON.stringify(hechos)); } catch(e){}
+    }
+  }
+
+  /* ---------- Notificaciones programadas (solo dentro de la APK) ---------- */
+  var HORA_AVISO = 8;   // hora del día en que llegan los avisos (8:00 a. m.)
+  var progPendiente = false;
+  function programarNativas(){
+    var LN = plugin('LocalNotifications');
+    if (!LN || progPendiente) return;
+    progPendiente = true;
+    setTimeout(async function(){
+      progPendiente = false;
+      try {
+        var perm = await LN.checkPermissions();
+        if (perm.display !== 'granted') perm = await LN.requestPermissions();
+        if (perm.display !== 'granted') return;
+        var pend = await LN.getPending();
+        if (pend.notifications && pend.notifications.length) await LN.cancel({notifications: pend.notifications});
+        var etiquetas = {2:'Vence en 2 días: ', 1:'Vence mañana: ', 0:'Vence hoy: '};
+        var avisos = [], ahora = new Date(), n = 1;
+        tareas.forEach(function(t){
+          if (t.status === 'Hechas' || !t.dueDate) return;
+          var p = t.dueDate.split('-');
+          if (p.length !== 3) return;
+          [2,1,0].forEach(function(dias){
+            var cuando = new Date(Number(p[0]), Number(p[1])-1, Number(p[2])-dias, HORA_AVISO, 0, 0);
+            if (cuando <= ahora) return;
+            avisos.push({id:n++, title:etiquetas[dias]+t.title, body:t.subject+' · '+t.type,
+                         schedule:{at:cuando, allowWhileIdle:true}});
+          });
+        });
+        if (avisos.length) await LN.schedule({notifications:avisos});
+      } catch(e) {}
+    }, 300);
+  }
+
+  /* ---------- Pintar todo ---------- */
+  function pintarTodo(){
+    pintarContadores();
+    pintarLista();
+    pintarResumen();
+    pintarCalendario();
+    revisarAlarmas();
+    programarNativas();
+  }
+
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e){}
+  pintarTodo();
+  setInterval(revisarAlarmas, 60*1000);
+  document.addEventListener('visibilitychange', function(){ if (!document.hidden) pintarTodo(); });
+})();
+</script>
+</body>
+</html>
