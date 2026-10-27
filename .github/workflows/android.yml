@@ -1,0 +1,72 @@
+name: Crear APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Preparar proyecto Capacitor
+        run: |
+          mkdir -p www
+          cp index.html www/index.html
+          npm init -y
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor/local-notifications@6 @capacitor/filesystem@6 @capacitor/share@6
+          cat > capacitor.config.json <<'EOF'
+          {
+            "appId": "com.organizador.tareas",
+            "appName": "Organizador de tareas",
+            "webDir": "www"
+          }
+          EOF
+          npx cap add android
+
+      - name: Permiso de notificaciones y llave de firma
+        run: |
+          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n</manifest>#' android/app/src/main/AndroidManifest.xml
+          if [ -f debug.keystore ]; then
+            mkdir -p ~/.android
+            cp debug.keystore ~/.android/debug.keystore
+          else
+            echo "No hay debug.keystore: la APK se firmara con una llave nueva."
+          fi
+
+      - name: Compilar APK
+        run: |
+          npx cap sync android
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Guardar APK como archivo descargable
+        uses: actions/upload-artifact@v4
+        with:
+          name: organizador-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publicar APK en Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: Organizador de tareas (compilacion ${{ github.run_number }})
+          files: android/app/build/outputs/apk/debug/app-debug.apk
